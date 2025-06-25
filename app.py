@@ -41,13 +41,14 @@ def parse_pdf_fields(file_data):
         for page in pdf.pages:
             table = page.extract_table()
             if table:
-                headers = [h.lower() for h in table[0]]
+                headers = [h.lower() if h else "" for h in table[0]]
                 for row in table[1:]:
                     row_dict = dict(zip(headers, row))
                     extracted_data["Item Description"].append(row_dict.get("description", ""))
                     extracted_data["Quantity"].append(row_dict.get("quantity", ""))
                     extracted_data["Unit Price"].append(row_dict.get("unit price", ""))
                     extracted_data["Net Price"].append(row_dict.get("net price", ""))
+
 
     return extracted_data
 
