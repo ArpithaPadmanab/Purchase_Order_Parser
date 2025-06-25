@@ -51,7 +51,6 @@ def parse_pdf_fields(file_data):
 
     return extracted_data
 
-
 def fetch_and_parse_po(email_user, email_pass, start_date, end_date):
     imap = imaplib.IMAP4_SSL("imap.gmail.com")
     imap.login(email_user, email_pass)
@@ -72,33 +71,24 @@ def fetch_and_parse_po(email_user, email_pass, start_date, end_date):
             continue
         msg = email.message_from_bytes(msg_data[0][1])
 
-        body_text = ""
-        has_attachment = False
         for part in msg.walk():
             content_disposition = str(part.get("Content-Disposition", ""))
-            if part.get_content_type() == "text/plain":
-                try:
-                    body_text += part.get_payload(decode=True).decode(errors="ignore")
-                except:
-                    pass
-            if "attachment" in content_disposition:
-                has_attachment = True
-
-        if has_attachment and "discussion" in body_text.lower():
-            for part in msg.walk():
-                content_disposition = str(part.get("Content-Disposition", ""))
-                filename = part.get_filename()
-                if filename and filename.lower().endswith(".pdf") and "attachment" in content_disposition:
-                    file_data = part.get_payload(decode=True)
-                    parsed_data = parse_pdf_fields(file_data)
-                    parsed_data["Email Subject"] = msg["Subject"]
-                    parsed_data["Email From"] = msg["From"]
-                    parsed_data["Date"] = msg["Date"]
-                    results.append(parsed_data)
+            filename = part.get_filename()
+            if (
+                filename
+                and filename.lower().endswith(".pdf")
+                and "purchase order" in filename.lower()
+                and "attachment" in content_disposition
+            ):
+                file_data = part.get_payload(decode=True)
+                parsed_data = parse_pdf_fields(file_data)
+                parsed_data["Email Subject"] = msg["Subject"]
+                parsed_data["Email From"] = msg["From"]
+                parsed_data["Date"] = msg["Date"]
+                results.append(parsed_data)
 
     imap.logout()
     return results
-
 
 def flatten_results(results):
     flat_data = []
@@ -122,34 +112,33 @@ def flatten_results(results):
             flat_data.append(row)
     return pd.DataFrame(flat_data)
 
-
 # === Streamlit App ===
-st.set_page_config(page_title="Purchase Order Email Extractor", layout="wide")
-st.title("📧 Purchase Order Email Extractor")
+st.set_page_config(page_title="Purchase Order Extractor", layout="wide")
+st.title("📧 Purchase Order Email Extractor (by PDF Filename)")
 
 with st.sidebar:
-    st.header("📅 Email Filter")
-    email_id = st.text_input("Email Address (Gmail)", value="")
-    app_password = st.text_input("App Password", type="password")
-    start_date = st.date_input("From Date", datetime.date.today() - datetime.timedelta(days=30))
-    end_date = st.date_input("To Date", datetime.date.today())
+    st.header("🔐 Email Credentials & Date Filter")
+    email_id = st.text_input("📧 Gmail Address", value="")
+    app_password = st.text_input("🔑 App Password", type="password")
+    start_date = st.date_input("📆 Start Date", datetime.date.today() - datetime.timedelta(days=30))
+    end_date = st.date_input("📆 End Date", datetime.date.today())
 
-    run = st.button("Fetch Purchase Orders")
+    run = st.button("🚀 Fetch Purchase Orders")
 
 if run:
     if not email_id or not app_password:
-        st.warning("Please enter both email and app password.")
+        st.warning("Please enter both Gmail address and App Password.")
     else:
-        with st.spinner("Fetching and parsing emails..."):
+        with st.spinner("🔍 Connecting to Gmail and scanning emails..."):
             results = fetch_and_parse_po(email_id, app_password, start_date, end_date)
             if results:
                 df = flatten_results(results)
-                st.success(f"Found {len(df)} items across {len(results)} emails.")
+                st.success(f"✅ Found {len(results)} emails with purchase order PDFs!")
                 st.dataframe(df)
 
-                # Download Excel
                 output = io.BytesIO()
                 df.to_excel(output, index=False, engine="openpyxl")
+
                 st.download_button(
                     label="📥 Download Excel",
                     data=output.getvalue(),
@@ -157,4 +146,4 @@ if run:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             else:
-                st.warning("No matching emails with 'purchase order' and PDF attachments found in that range.")
+                st.warning("No emails with 'purchase order' in PDF filename found in the selected range.")
