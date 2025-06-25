@@ -84,7 +84,7 @@ def fetch_and_parse_po(email_user, email_pass, start_date, end_date):
             if "attachment" in content_disposition:
                 has_attachment = True
 
-        if has_attachment and "purchase order" in body_text.lower():
+        if has_attachment and "discussion" in body_text.lower():
             for part in msg.walk():
                 content_disposition = str(part.get("Content-Disposition", ""))
                 filename = part.get_filename()
