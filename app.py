@@ -116,18 +116,23 @@ def flatten_results(results):
         max_len = max(len(entry["Item Description"]), 1)
         for i in range(max_len):
             row = {
-                "Email From": entry["Email From"],
-                "Email Subject": entry["Email Subject"],
-                "Date": entry["Date"],
-                "Vendor Number": entry["Vendor Number"],
-                "Purchase Order Number": entry["Purchase Order Number"],
-                "Vendor Address": entry["Vendor Address"],
+                "Email From": entry.get("Email From", ""),
+                "Email Subject": entry.get("Email Subject", ""),
+                "Date": entry.get("Date", ""),
+                "Vendor Number": entry.get("Vendor Number", ""),
+                "PO Number": entry.get("PO Number", ""),
+                "PO Date": entry.get("PO Date", ""),
+                "Vendor Address": entry.get("Vendor Address", ""),
+                "Bill To": entry.get("Bill To", ""),
+                "Ship To": entry.get("Ship To", ""),
                 "Item Description": entry["Item Description"][i] if i < len(entry["Item Description"]) else "",
                 "Quantity": entry["Quantity"][i] if i < len(entry["Quantity"]) else "",
+                "Unit": entry["Unit"][i] if i < len(entry["Unit"]) else "",
                 "Unit Price": entry["Unit Price"][i] if i < len(entry["Unit Price"]) else "",
                 "Net Price": entry["Net Price"][i] if i < len(entry["Net Price"]) else "",
-                "GST": entry["GST"],
-                "Total Value": entry["Total Value"],
+                "State GST": entry.get("State GST", ""),
+                "Central GST": entry.get("Central GST", ""),
+                "Total Order Value": entry.get("Total Value", "")
             }
             flat_data.append(row)
     return pd.DataFrame(flat_data)
