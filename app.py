@@ -31,15 +31,30 @@ def parse_pdf_fields(file_data):
         for page in pdf.pages:
             text += page.extract_text() + "\n"
 
-    # Extract using regex and section splitting
-    extracted_data["Vendor Number"] = re.search(r"Vendor No\.\s*(\d+)", text).group(1)
-    extracted_data["PO Number"] = re.search(r"PO Number\s*(\d+)", text).group(1)
-    extracted_data["PO Date"] = re.search(r"PO Date\s*([\d.]+)", text).group(1)
+    # Safe regex extraction
+    match = re.search(r"Vendor No\.\s*(\d+)", text)
+    if match:
+        extracted_data["Vendor Number"] = match.group(1)
 
-    # Extract GSTs and total value
-    extracted_data["State GST"] = re.search(r"State GST\s*\n?\s*9%\s*\n?\s*([\d,.]+)", text).group(1)
-    extracted_data["Central GST"] = re.search(r"Central GST\s*\n?\s*9%\s*\n?\s*([\d,.]+)", text).group(1)
-    extracted_data["Total Value"] = re.search(r"Total Order Value \( INR \)\s*([\d,\.]+)", text).group(1)
+    match = re.search(r"PO Number\s*(\d+)", text)
+    if match:
+        extracted_data["PO Number"] = match.group(1)
+
+    match = re.search(r"PO Date\s*([\d.]+)", text)
+    if match:
+        extracted_data["PO Date"] = match.group(1)
+
+    match = re.search(r"State GST\s*\n?\s*9%\s*\n?\s*([\d,.]+)", text)
+    if match:
+        extracted_data["State GST"] = match.group(1)
+
+    match = re.search(r"Central GST\s*\n?\s*9%\s*\n?\s*([\d,.]+)", text)
+    if match:
+        extracted_data["Central GST"] = match.group(1)
+
+    match = re.search(r"Total Order Value \( INR \)\s*([\d,\.]+)", text)
+    if match:
+        extracted_data["Total Value"] = match.group(1)
 
     # Extract Vendor Address
     vendor_addr_match = re.search(r"Vendor\s+(.*?)\s+Buyers Name:", text, re.DOTALL)
@@ -54,22 +69,22 @@ def parse_pdf_fields(file_data):
     if ship_to_match:
         extracted_data["Ship To"] = ship_to_match.group(1).strip()
 
-    # Extract item table using known format
+    # Extract item table block (known format from your sample)
     item_match = re.search(r"Item Material Code/.*?Qty\.\s+Unit\s+Deliv\. Date.*?\n(.*?)\n\s+State GST", text, re.DOTALL)
     if item_match:
         item_block = item_match.group(1).strip()
         item_lines = item_block.splitlines()
         for line in item_lines:
-            # Try to parse line like: 1 AU 80,000.00 80,000.00
             parts = re.split(r'\s{2,}', line.strip())
             if len(parts) >= 4:
                 extracted_data["Quantity"].append(parts[0])
                 extracted_data["Unit"].append(parts[1])
                 extracted_data["Unit Price"].append(parts[2].replace(",", ""))
                 extracted_data["Net Price"].append(parts[3].replace(",", ""))
-                extracted_data["Item Description"].append("Travel Charges (PO#3791226168-July - Aug)")
+                extracted_data["Item Description"].append("Travel Charges (PO#...)")  # You can improve this
 
     return extracted_data
+
 
 def fetch_and_parse_po(email_user, email_pass, start_date, end_date):
     imap = imaplib.IMAP4_SSL("imap.gmail.com")
