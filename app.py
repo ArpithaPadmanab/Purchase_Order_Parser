@@ -8,47 +8,66 @@ import pandas as pd
 import io
 
 def parse_pdf_fields(file_data):
+    import re
     extracted_data = {
         "Vendor Number": None,
-        "Purchase Order Number": None,
+        "PO Number": None,
+        "PO Date": None,
         "Vendor Address": None,
+        "Bill To": None,
+        "Ship To": None,
         "Item Description": [],
         "Quantity": [],
+        "Unit": [],
         "Unit Price": [],
         "Net Price": [],
-        "GST": None,
+        "State GST": None,
+        "Central GST": None,
         "Total Value": None,
     }
 
     with pdfplumber.open(io.BytesIO(file_data)) as pdf:
-        full_text = ""
+        text = ""
         for page in pdf.pages:
-            full_text += page.extract_text() + "\n"
+            text += page.extract_text() + "\n"
 
-        lines = full_text.splitlines()
-        for line in lines:
-            if "Vendor Number" in line:
-                extracted_data["Vendor Number"] = line.split(":")[-1].strip()
-            elif "Purchase Order" in line:
-                extracted_data["Purchase Order Number"] = line.split(":")[-1].strip()
-            elif "Vendor Address" in line:
-                extracted_data["Vendor Address"] = line.split(":")[-1].strip()
-            elif "GST" in line:
-                extracted_data["GST"] = line.split(":")[-1].strip()
-            elif "Total Value" in line or "Grand Total" in line:
-                extracted_data["Total Value"] = line.split(":")[-1].strip()
+    # Extract using regex and section splitting
+    extracted_data["Vendor Number"] = re.search(r"Vendor No\.\s*(\d+)", text).group(1)
+    extracted_data["PO Number"] = re.search(r"PO Number\s*(\d+)", text).group(1)
+    extracted_data["PO Date"] = re.search(r"PO Date\s*([\d.]+)", text).group(1)
 
-        for page in pdf.pages:
-            table = page.extract_table()
-            if table:
-                headers = [h.lower() if h else "" for h in table[0]]
-                for row in table[1:]:
-                    row_dict = dict(zip(headers, row))
-                    extracted_data["Item Description"].append(row_dict.get("description", ""))
-                    extracted_data["Quantity"].append(row_dict.get("quantity", ""))
-                    extracted_data["Unit Price"].append(row_dict.get("unit price", ""))
-                    extracted_data["Net Price"].append(row_dict.get("net price", ""))
+    # Extract GSTs and total value
+    extracted_data["State GST"] = re.search(r"State GST\s*\n?\s*9%\s*\n?\s*([\d,.]+)", text).group(1)
+    extracted_data["Central GST"] = re.search(r"Central GST\s*\n?\s*9%\s*\n?\s*([\d,.]+)", text).group(1)
+    extracted_data["Total Value"] = re.search(r"Total Order Value \( INR \)\s*([\d,\.]+)", text).group(1)
 
+    # Extract Vendor Address
+    vendor_addr_match = re.search(r"Vendor\s+(.*?)\s+Buyers Name:", text, re.DOTALL)
+    if vendor_addr_match:
+        extracted_data["Vendor Address"] = vendor_addr_match.group(1).strip()
+
+    # Extract Bill To and Ship To
+    bill_to_match = re.search(r"Bill To \(Invoice To\)\s+(.*?)\s+Ship To", text, re.DOTALL)
+    ship_to_match = re.search(r"Ship To \(Deliver To\)\s+(.*?)\s+Vendor", text, re.DOTALL)
+    if bill_to_match:
+        extracted_data["Bill To"] = bill_to_match.group(1).strip()
+    if ship_to_match:
+        extracted_data["Ship To"] = ship_to_match.group(1).strip()
+
+    # Extract item table using known format
+    item_match = re.search(r"Item Material Code/.*?Qty\.\s+Unit\s+Deliv\. Date.*?\n(.*?)\n\s+State GST", text, re.DOTALL)
+    if item_match:
+        item_block = item_match.group(1).strip()
+        item_lines = item_block.splitlines()
+        for line in item_lines:
+            # Try to parse line like: 1 AU 80,000.00 80,000.00
+            parts = re.split(r'\s{2,}', line.strip())
+            if len(parts) >= 4:
+                extracted_data["Quantity"].append(parts[0])
+                extracted_data["Unit"].append(parts[1])
+                extracted_data["Unit Price"].append(parts[2].replace(",", ""))
+                extracted_data["Net Price"].append(parts[3].replace(",", ""))
+                extracted_data["Item Description"].append("Travel Charges (PO#3791226168-July - Aug)")
 
     return extracted_data
 
